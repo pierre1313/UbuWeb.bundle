@@ -1,7 +1,5 @@
 # PMS plugin framework
-from PMS import *
-from PMS.Objects import *
-from PMS.Shortcuts import *
+
 import re
 ####################################################################################################
 
@@ -36,6 +34,8 @@ def Start():
     MediaContainer.art = R(ART)
     MediaContainer.title1 = NAME
     DirectoryItem.thumb = R(ICON)
+    
+    HTTP.CacheTime = 3600
 
 def VideoMainMenu():
     dir = MediaContainer(viewGroup="List")
@@ -48,37 +48,37 @@ def VideoMainMenu():
     
 def ExplorePage(sender,url):
     dir = MediaContainer(viewGroup="List")
-    pagetoscrape = HTTP.Request(url)
+    pagetoscrape = HTTP.Request(url).content
     list = re.findall(r"file=(.*)'\);",pagetoscrape)
     for l in list:
-      Log(l)
       dir.Append(VideoItem(l,sender.title2,thumb=R(ICON),art=R(ART)))
     return dir
 
 def VideoRSSParsingMenu(sender):
     dir = MediaContainer(viewGroup="List")
     rssfeed = XML.ElementFromURL(RSS_FEED)
-    
+
     for item in rssfeed.xpath('//item'):
-      title = item.find('title').text
-      link =  item.find('link').text
-      page = HTTP.Request(link)
-      if re.findall('(.*).flv',page) != [] :
-        #dir.Append(Function(DirectoryItem(ExplorePage,title,thumb=R(ICON),art=R(ART)),url = link))
-        try:
-          pagetoscrape = HTTP.Request(link)
-          list = re.findall(r"file=(.*)'\);",pagetoscrape)
-          if list != []:
-            for l in list:
-              Log(l)
-              dir.Append(VideoItem(l,title,thumb=R(ICON),art=R(ART)))
-        except:
-          pagetoscrape =''
+      try:
+        title = item.find('title').text
+        link =  item.find('link').text
+        page = HTTP.Request(link).content
+        if re.findall('(.*).flv',page) != [] :
+          try:
+            pagetoscrape = HTTP.Request(link).content
+            list = re.findall(r"file=(.*)'\);",pagetoscrape)
+            if list != []:
+              for l in list:
+                dir.Append(VideoItem(l,title,thumb=R(ICON),art=R(ART)))
+          except:
+            Log('Error requesting '+link)
+      except:
+        Log('Error requesting '+link)
     return dir
     
 def ExploreAuthor(sender,url):
-    dir = MediaContainer(viewGroup="InfoList")
-    rawpage = HTTP.Request(url)
+    dir = MediaContainer(viewGroup="List")
+    rawpage = HTTP.Request(url).content
     if (rawpage == None):
       return MessageContainer("404 - Page does not exist","A problem has been detected as this page does not exists or has been removed")
     videos = re.findall('(.*).flv',rawpage)
@@ -86,25 +86,19 @@ def ExploreAuthor(sender,url):
       for v in re.findall(r"file=(.*)'\);",rawpage):
         title = v[v.rfind('/')+1:v.rfind('.')]
         dir.Append(VideoItem(v,title = title,thumb=R(ICON),art=R(ART)))
-    page = XML.ElementFromString(rawpage,isHTML=True)
-    for item in page.xpath('//a'):
+    for item in HTML.ElementFromString(rawpage).xpath('//a'):
       link = item.get('href')
       title = item.text
-      Log(link)
       if link.startswith('http') == False:
         if (title.startswith('Roulette') == False):
           link = FILM_PAGE + '/' + item.get('href')
-          #dir.Append(Function(DirectoryItem(ExplorePage,title,thumb=R(ICON),art=R(ART)),url = link))
           try:
-            pagetoscrape = HTTP.Request(link)
-            Log(pagetoscrape)
+            pagetoscrape = HTTP.Request(link).content
             list = re.findall(r"file=(.*)'\);",pagetoscrape)
             for l in list:
-              Log(l)
               dir.Append(VideoItem(l,title,thumb=R(ICON),art=R(ART)))
             list =  re.findall(r'<embed src="(.*).mov',pagetoscrape)
             for l in list:
-              Log(l)
               dir.Append(VideoItem(l+'.mov',title,thumb=R(ICON),art=R(ART)))
           except:
             pagetoscrape =''
@@ -114,9 +108,8 @@ def ExploreAuthor(sender,url):
     return dir
 
 def VideoByAuthorMenu(sender):
-    dir = MediaContainer(viewGroup="InfoList")
-    page = XML.ElementFromURL(FILM_PAGE,isHTML=True)
-    for item in page.xpath('//table//a'):
+    dir = MediaContainer(viewGroup="List")
+    for item in HTML.ElementFromURL(FILM_PAGE).xpath('//table//a'):
       if item.get('href').startswith('http') == False:
         author = item.text
         link = FILM_PAGE + item.get('href')[1:]
@@ -125,8 +118,7 @@ def VideoByAuthorMenu(sender):
     
 def VideoforRouletteMenu(sender):
     dir = MediaContainer(viewGroup="InfoList")
-    page = XML.ElementFromURL(FILM_PAGE+'/roulette.html',isHTML=True)
-    for item in page.xpath('//a'):
+    for item in HTML.ElementFromURL(FILM_PAGE+'/roulette.html').xpath('//a'):
       href = item.get('href') 
       if href.startswith('roulette') == True:
         author = item.text
@@ -151,15 +143,14 @@ def AudioRSSParsingMenu(sender):
     for item in rssfeed.xpath('//item'):
       title = item.find('title').text
       link =  item.find('link').text
-      page = HTTP.Request(link)
+      page = HTTP.Request(link).content
       if re.findall('(.*).mp3',page) != [] :
         dir.Append(Function(DirectoryItem(ExploreAudioPage,title,thumb=R(ICON),art=R(ART)),url = link))
     return dir
 
 def AudioByAuthorMenu(sender):
-    dir = MediaContainer(viewGroup="InfoList")
-    page = XML.ElementFromURL(AUDIO_PAGE,isHTML=True)
-    for item in page.xpath('//table//a'):
+    dir = MediaContainer(viewGroup="List")
+    for item in HTML.ElementFromURL(AUDIO_PAGE).xpath('//table//a'):
       if item.get('href').startswith('http') == False:  
         author = item.text
         link = AUDIO_PAGE + item.get('href')[1:]
@@ -168,8 +159,7 @@ def AudioByAuthorMenu(sender):
     
 def ExploreAudioPage(sender,url):
     dir = MediaContainer(viewGroup="List")
-    pagetoscrape =XML.ElementFromURL(url,isHTML=True)
-    for l in pagetoscrape.xpath('//a'):
+    for l in HTML.ElementFromURL(url).xpath('//a'):
       if l.get('href').find("mp3")!=-1:
         dir.Append(TrackItem(l.get('href'),l.text.split('<br>')[0],thumb=R(ICON),art=R(ART)))
     return dir
